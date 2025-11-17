@@ -1,0 +1,81 @@
+name: Python Application CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Install dependencies with uv
+      run: |
+        if [ -f requirements.txt ]; then uv pip install -r requirements.txt; fi
+    
+    - name: Install ruff
+      run: uv pip install ruff
+    
+    - name: Lint with ruff
+      run: |
+        # 使用ruff检查代码格式和潜在问题
+        ruff check .
+    
+    - name: Run tests
+      run: |
+        # 这里可以添加测试命令，例如 pytest
+        echo "No tests available yet"
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Install dependencies with uv
+      run: |
+        if [ -f requirements.txt ]; then uv pip install -r requirements.txt; fi
+    
+    - name: Build package with uv
+      run: |
+        uv pip install build
+        uv build
+    
+    - name: Display build artifacts
+      run: ls -la dist/
+    
+    # 这里可以添加部署步骤，例如部署到PyPI或其他平台
+    - name: Deploy to test environment
+      run: |
+        echo "Deploying to test environment..."
+        # 这里添加实际的部署命令

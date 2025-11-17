@@ -1,0 +1,97 @@
+name: Build and Release Desktop Application
+
+on:
+  # 可以手动触发工作流
+  workflow_dispatch:
+  # 当创建新的标签时触发
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Install dependencies with uv
+      run: |
+        if [ -f requirements.txt ]; then uv pip install -r requirements.txt; fi
+    
+    - name: Install PyInstaller
+      run: uv pip install pyinstaller
+    
+    - name: Build executable with PyInstaller on Windows
+      if: matrix.os == 'windows-latest'
+      run: |
+        pyinstaller --onefile --windowed --name "adata_ui" --clean --collect-all nicegui --collect-all adata --copy-metadata nicegui --copy-metadata adata main.py
+        ls -la dist/
+    
+    - name: Build executable with PyInstaller on macOS
+      if: matrix.os == 'macos-latest'
+      run: |
+        pyinstaller --onefile --windowed --name "adata_ui" --clean --collect-all nicegui --collect-all adata --copy-metadata nicegui --copy-metadata adata main.py
+        ls -la dist/
+        # 修复macOS应用权限
+        chmod +x dist/adata_ui.app/Contents/MacOS/adata_ui
+    
+    # 本地构建DMG可以通过Makefile完成，这里不再在CI环境中创建DMG
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: executables-${{ matrix.os }}
+        path: |
+          dist/adata_ui.exe
+          dist/adata_ui.dmg
+          dist/adata_ui.app
+          dist/adata_ui
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Release ${{ github.ref_name }}
+        body: |
+          A new release of AData UI is available!
+          
+          This release includes:
+          - Fixed UI issues
+          - Enhanced export functionality
+          - Improved error handling
+        draft: false
+        prerelease: false
+        files: |
+          artifacts/executables-windows-latest/dist/adata_ui.exe
+          # DMG文件可以通过本地Makefile构建: make dmg
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,63 @@
+# pre-commit hooks配置
+# 安装: pip install pre-commit && pre-commit install
+# 手动运行: pre-commit run --all-files
+
+repos:
+  # 通用文件格式检查
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace      # 移除行尾空格
+      - id: end-of-file-fixer        # 确保文件以换行符结尾
+      - id: check-yaml               # 检查YAML文件格式
+      - id: check-json               # 检查JSON文件格式
+      - id: check-added-large-files  # 检查是否添加了大文件
+        args: ['--maxkb=500']
+      - id: detect-private-key       # 检查是否包含私钥
+
+  # Python代码格式化
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3.12
+
+  # Python导入语句排序
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        name: isort (python)
+
+  # Python代码检查
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.1.13
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+
+  # Python类型检查
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-all
+        exclude: 'test_'
+
+  # 文档字符串检查
+  - repo: https://github.com/pycqa/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        exclude: 'test_'
+        args: [--convention=numpy]
+
+  # YAML文件格式化
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        types: [yaml]
+        exclude: '.github/'
