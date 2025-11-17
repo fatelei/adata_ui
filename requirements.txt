@@ -2,3 +2,11 @@ adata
 nicegui
 pandas
 matplotlib
+pyinstaller
+pyinstaller-hooks-contrib
+pre-commit
+black
+isort
+ruff
+mypy
+pydocstyle

@@ -14,43 +14,7 @@ def setup_app():
     # 设置应用标题
     app.config.title = '股票数据分析系统'
     
-    # 设置主题
-    ui.dark_mode(False)
-    
-    # 全局CSS样式
-    ui.add_head_html('''
-    <style>
-        /* 自定义滚动条 */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
-        }
-        
-        /* 按钮悬停效果 */
-        .q-btn:hover {
-            transform: translateY(-1px);
-        }
-        
-        /* 卡片阴影效果 */
-        .q-card {
-            transition: box-shadow 0.3s ease;
-        }
-        .q-card:hover {
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-        }
-    </style>
-    ''')
+    # CSS样式将在每个页面函数内部添加
     
     # 设置错误处理
     # 对于NiceGUI，我们使用app.on_exception而不是exception_handlers.append
@@ -62,10 +26,11 @@ def setup_app():
     # NiceGUI中不需要显式的页面加载钩子，我们会在需要的地方调用page_additions函数
 
 
+import time
 def show_error(message):
     """显示错误消息"""
     app.storage.general['error_message'] = message
-    app.storage.general['last_error_time'] = app.time()
+    app.storage.general['last_error_time'] = time.time()
     ui.notify(message, color='negative')
 
 

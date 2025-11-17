@@ -12,48 +12,41 @@ data_transformer = DataTransformer()
 
 def load_concept_page():
     """加载概念板块查询页面"""
-    # 清空主内容区域
-    main_content = app.storage.general.get('main_content')
-    if main_content:
-        main_content.clear()
-    
+    # 不需要从全局存储获取main_content，直接在当前上下文中创建内容
     # 页面标题
-    with main_content:
-        ui.label('概念板块查询').style('font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem; color: #165DFF')
-        
-        # 创建查询表单
-        with ui.card().classes('p-6 shadow-md border-0 rounded-xl mb-6'):
-            with ui.row().classes('items-center gap-4'):
-                # 概念板块名称输入
-                ui.label('板块名称:')
-                concept_name_input = ui.input(placeholder='请输入概念板块名称或代码，例如：5G').props('outlined')
-                
-                # 排序方式选择
-                ui.label('排序方式:')
-                sort_by_select = ui.select([
-                    {'value': 'change', 'label': '涨幅排序'},
-                    {'value': 'volume', 'label': '成交量排序'},
-                    {'value': 'market_value', 'label': '总市值排序'}
-                ], value='change').props('outlined')
-                
-                # 查询按钮
-                query_button = ui.button('查询', on_click=lambda: query_concept_list(concept_name_input.value, sort_by_select.value), icon='search').props('color=primary')
-        
-        # 数据显示区域
-        result_container = ui.card().classes('p-6 shadow-md border-0 rounded-xl min-h-[500px]')
-        
-        # 初始显示提示信息
-        with result_container:
-            with ui.column().classes('items-center justify-center h-full py-12'):
-                ui.icon('category', size='48px').props('color=primary/50')
-                ui.label('请输入概念板块名称并点击查询按钮').style('color: #666; margin-top: 1rem;')
-        
+    ui.label('概念板块查询').style('font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem; color: #165DFF')
+    
+    # 创建查询表单
+    with ui.card().classes('p-6 shadow-md border-0 rounded-xl mb-6'):
+        with ui.row().classes('items-center gap-4'):
+            # 概念板块名称输入
+            ui.label('板块名称:')
+            concept_name_input = ui.input(placeholder='请输入概念板块名称或代码，例如：5G').props('outlined')
+            
+            # 排序方式选择
+            ui.label('排序方式:')
+            sort_by_select = ui.select(['涨幅排序', '成交量排序', '总市值排序'], value='涨幅排序').props('outlined')
+            
+            # 查询按钮
+            query_button = ui.button('查询', on_click=lambda: query_concept_list(concept_name_input.value, sort_by_select.value), icon='search').props('color=primary')
+    
+    # 数据显示区域
+    result_container = ui.card().classes('p-6 shadow-md border-0 rounded-xl min-h-[500px]')
+    
+    # 初始显示提示信息
+    with result_container:
+        with ui.column().classes('items-center justify-center h-full py-12'):
+            ui.icon('category', size='48px').props('color=primary/50')
+            ui.label('请输入概念板块名称并点击查询按钮').style('color: #666; margin-top: 1rem;')
     
     # 选中的概念板块
     selected_concept = None
     
     async def query_concept_list(concept_name, sort_by):
         """查询概念板块列表"""
+        nonlocal selected_concept
+        selected_concept = None
+        
         # 设置加载状态
         set_loading(True)
         try:
@@ -81,11 +74,11 @@ def load_concept_page():
                 return
             
             # 根据选择的排序方式排序
-            if sort_by == 'change':
+            if sort_by == '涨幅排序':
                 concept_list = concept_list.sort_values('change', ascending=False)
-            elif sort_by == 'volume':
+            elif sort_by == '成交量排序':
                 concept_list = concept_list.sort_values('volume', ascending=False)
-            elif sort_by == 'market_value':
+            elif sort_by == '总市值排序':
                 concept_list = concept_list.sort_values('market_value', ascending=False)
             
             # 显示概念板块列表
@@ -185,13 +178,21 @@ def load_concept_page():
         except Exception as e:
             show_error(f'导出失败: {str(e)}')
     
-    # 注册API函数，供JavaScript调用
-    @app.expose
-    async def show_concept_stocks(concept_code, concept_name):
+    # 使用NiceGUI的方式注册API函数
+    async def show_concept_stocks_handler(concept_code: str, concept_name: str):
         """显示概念板块的成分股"""
         nonlocal selected_concept
         selected_concept = (concept_code, concept_name)
         
+        # 使用队列来确保在UI线程中执行UI操作
+        # 由于_show_concept_stocks_dialog现在是异步函数，我们需要在lambda中使用async/await
+        async def show_dialog():
+            await _show_concept_stocks_dialog(concept_code, concept_name)
+        ui.update_later(show_dialog)
+        return {"status": "success"}
+    
+    # 实际显示对话框的函数，将在UI线程中执行
+    async def _show_concept_stocks_dialog(concept_code, concept_name):
         # 打开对话框显示成分股
         with ui.dialog() as dialog, ui.card().classes('w-[90vw] max-w-6xl max-h-[80vh] overflow-hidden'):
             # 对话框头部
@@ -218,8 +219,14 @@ def load_concept_page():
                         {'value': 'limit_down', 'label': '跌停'}
                     ], value='all').props('outlined')
                     
-                    ui.button('刷新', on_click=lambda: load_concept_stocks(concept_code, concept_name, stock_sort_by.value, change_filter.value), icon='refresh').props('color=primary')
-                    ui.button('导出成分股', on_click=lambda: export_concept_stocks(concept_code, concept_name), icon='download').props('flat color=success')
+                    # 创建异步的刷新处理函数
+                    async def refresh_stocks():
+                        await load_concept_stocks(concept_code, concept_name, stock_sort_by.value, change_filter.value, stocks_container)
+                    ui.button('刷新', on_click=refresh_stocks, icon='refresh').props('color=primary')
+                    # 创建异步的导出处理函数
+                    async def export_stocks():
+                        await export_concept_stocks(concept_code, concept_name)
+                    ui.button('导出成分股', on_click=export_stocks, icon='download').props('flat color=success')
             
             # 成分股列表容器
             stocks_container = ui.element('div').classes('overflow-auto max-h-[calc(80vh-150px)]')
@@ -392,7 +399,6 @@ def load_concept_page():
         asyncio.create_task(do_export())
     
     # 注册API函数，供JavaScript调用
-    @app.expose
     def view_stock_detail(stock_code, stock_name):
         """查看股票详情"""
         # 存储当前选中的股票信息
@@ -402,23 +408,31 @@ def load_concept_page():
         from adata_ui.pages.stock_page import load_stock_info_page
         load_stock_info_page()
         
-        # 延迟执行查询，确保页面已经加载完成
-        import asyncio
-        asyncio.create_task(query_stock_after_delay(stock_code))
-    
-    async def query_stock_after_delay(stock_code):
-        """延迟查询股票信息"""
-        # 等待一小段时间，确保页面已经加载完成
-        await asyncio.sleep(0.5)
+        # 设置延迟查询
+        setup_delay_query(stock_code)
         
-        # 这里可以通过JavaScript触发查询按钮的点击事件
-        # 或者直接调用stock_page中的查询函数
-        ui.run_javascript(f'''  
-            // 查找股票代码输入框并设置值
-            const inputElements = document.querySelectorAll('input');
-            for (let i = 0; i < inputElements.length; i++) {{
-                if (inputElements[i].placeholder.includes('请输入股票代码')) {{
-                    inputElements[i].value = '{stock_code}';
+    # 使用add_api_route注册API
+    app.add_api_route('/view_stock_detail', view_stock_detail, methods=['POST'])
+
+# 延迟执行查询，确保页面已经加载完成
+def setup_delay_query(stock_code):
+    """设置延迟查询股票信息"""
+    import asyncio
+    asyncio.create_task(query_stock_after_delay(stock_code))
+
+async def query_stock_after_delay(stock_code):
+    """延迟查询股票信息"""
+    # 等待一小段时间，确保页面已经加载完成
+    await asyncio.sleep(0.5)
+    
+    # 这里可以通过JavaScript触发查询按钮的点击事件
+    # 或者直接调用stock_page中的查询函数
+    ui.run_javascript(f'''  
+        // 查找股票代码输入框并设置值
+        const inputElements = document.querySelectorAll('input');
+        for (let i = 0; i < inputElements.length; i++) {{
+            if (inputElements[i].placeholder.includes('请输入股票代码')) {{
+                inputElements[i].value = '{stock_code}';
                     break;
                 }}
             }}
@@ -432,3 +446,6 @@ def load_concept_page():
                 }}
             }}
         ''')
+    
+    # 注册API路由，允许前端JavaScript调用
+    app.add_api_route('/show_concept_stocks', show_concept_stocks_handler, methods=['POST'])

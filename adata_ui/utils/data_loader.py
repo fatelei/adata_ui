@@ -6,6 +6,24 @@ import random
 import pandas as pd
 from typing import Dict, List, Optional
 
+class DataTransformer:
+    """数据转换器类，负责数据格式化和转换"""
+    
+    def __init__(self):
+        pass
+    
+    def format_stock_price(self, price):
+        """格式化股票价格"""
+        return round(float(price), 2)
+    
+    def format_volume(self, volume):
+        """格式化成交量"""
+        return f"{int(volume):,}"
+    
+    def format_change_pct(self, change):
+        """格式化涨跌幅"""
+        return f"{float(change):+.2f}%"
+
 class DataLoader:
     """数据加载器类，负责获取各类股票数据"""
     
@@ -96,6 +114,69 @@ class DataLoader:
             return pd.DataFrame(prices)
         except Exception as e:
             print(f"获取股票行情数据失败: {str(e)}")
+            return pd.DataFrame()
+    
+    async def get_stock_info(self, code):
+        """获取股票信息
+        
+        Args:
+            code: 股票代码
+            
+        Returns:
+            dict: 股票信息
+        """
+        try:
+            await asyncio.sleep(0.5)
+            return {
+                'code': code,
+                'name': f'股票{code}',
+                'industry': '科技',
+                'area': '深圳',
+                'pe': 25.5,
+                'pb': 2.1,
+                'total_share': 1000000000,
+                'float_share': 800000000,
+                'market_cap': 10000000000,
+                'eps': 0.45,
+                'bvps': 5.2
+            }
+        except Exception as e:
+            print(f"获取股票信息失败: {str(e)}")
+            return None
+    
+    async def get_concept_list(self, concept_name=None):
+        """获取概念板块列表
+        
+        Args:
+            concept_name: 概念名称（可选）
+            
+        Returns:
+            pandas DataFrame: 概念板块列表
+        """
+        try:
+            await asyncio.sleep(0.6)
+            
+            # 模拟概念板块数据
+            data = [
+                {'code': '880123', 'name': 'AI芯片', 'change': random.uniform(-5, 8), 'volume': random.randint(10000000, 100000000), 'market_value': random.uniform(500, 2000)},
+                {'code': '880234', 'name': '新能源汽车', 'change': random.uniform(-5, 8), 'volume': random.randint(10000000, 100000000), 'market_value': random.uniform(500, 2000)},
+                {'code': '880345', 'name': '光伏概念', 'change': random.uniform(-5, 8), 'volume': random.randint(10000000, 100000000), 'market_value': random.uniform(500, 2000)},
+                {'code': '880456', 'name': '半导体', 'change': random.uniform(-5, 8), 'volume': random.randint(10000000, 100000000), 'market_value': random.uniform(500, 2000)},
+                {'code': '880567', 'name': '5G通信', 'change': random.uniform(-5, 8), 'volume': random.randint(10000000, 100000000), 'market_value': random.uniform(500, 2000)},
+                {'code': '880678', 'name': '医药生物', 'change': random.uniform(-5, 8), 'volume': random.randint(10000000, 100000000), 'market_value': random.uniform(500, 2000)},
+                {'code': '880789', 'name': '云计算', 'change': random.uniform(-5, 8), 'volume': random.randint(10000000, 100000000), 'market_value': random.uniform(500, 2000)},
+                {'code': '880890', 'name': '军工', 'change': random.uniform(-5, 8), 'volume': random.randint(10000000, 100000000), 'market_value': random.uniform(500, 2000)}
+            ]
+            
+            df = pd.DataFrame(data)
+            
+            # 如果提供了概念名称，进行过滤
+            if concept_name:
+                df = df[df['name'].str.contains(concept_name, case=False)]
+            
+            return df
+        except Exception as e:
+            print(f"获取概念板块列表失败: {str(e)}")
             return pd.DataFrame()
     
     def get_stock_data(self, stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:

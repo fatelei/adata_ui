@@ -13,44 +13,32 @@ data_transformer = DataTransformer()
 
 def load_stock_market_page():
     """加载股票行情查询页面"""
-    # 清空主内容区域
-    main_content = app.storage.general.get('main_content')
-    if main_content:
-        main_content.clear()
+    # 不需要从全局存储获取main_content，直接在当前上下文中创建内容
+    ui.label('股票行情查询').style('font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem; color: #165DFF')
     
-    # 页面标题
-    with main_content:
-        ui.label('股票行情查询').style('font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem; color: #165DFF')
-        
-        # 创建查询表单
-        with ui.card().classes('p-6 shadow-md border-0 rounded-xl mb-6'):
-            with ui.row().classes('items-center gap-4'):
-                # 股票代码输入
-                ui.label('股票代码:')
-                stock_code_input = ui.input(placeholder='请输入股票代码，例如：600000').props('outlined')
-                
-                # 时间范围选择
-                ui.label('时间范围:')
-                time_range = ui.select([
-                    {'value': 7, 'label': '7天'},
-                    {'value': 30, 'label': '30天'},
-                    {'value': 90, 'label': '90天'},
-                    {'value': 180, 'label': '180天'},
-                    {'value': 365, 'label': '1年'}
-                ], value=30).props('outlined')
-                
-                # 查询按钮
-                query_button = ui.button('查询', on_click=lambda: query_stock_data(stock_code_input.value, time_range.value), icon='search').props('color=primary')
-        
-        # 数据显示区域
-        result_container = ui.card().classes('p-6 shadow-md border-0 rounded-xl min-h-[500px]')
-        
-        # 初始显示提示信息
-        with result_container:
-            with ui.column().classes('items-center justify-center h-full py-12'):
-                ui.icon('query-stats', size='48px').props('color=primary/50')
-                ui.label('请输入股票代码并点击查询按钮').style('color: #666; margin-top: 1rem;')
-        
+    # 创建查询表单
+    with ui.card().classes('p-6 shadow-md border-0 rounded-xl mb-6'):
+        with ui.row().classes('items-center gap-4'):
+            # 股票代码输入
+            ui.label('股票代码:')
+            stock_code_input = ui.input(placeholder='请输入股票代码，例如：600000').props('outlined')
+            
+            # 时间范围选择
+            ui.label('时间范围:')
+            time_range = ui.select([7, 30, 90, 180, 365], value=30).props('outlined')
+            
+            # 查询按钮
+            query_button = ui.button('查询', on_click=lambda: query_stock_data(stock_code_input.value, time_range.value), icon='search').props('color=primary')
+    
+    # 数据显示区域
+    result_container = ui.card().classes('p-6 shadow-md border-0 rounded-xl min-h-[500px]')
+    
+    # 初始显示提示信息
+    with result_container:
+        with ui.column().classes('items-center justify-center h-full py-12'):
+            ui.icon('query-stats', size='48px').props('color=primary/50')
+            ui.label('请输入股票代码并点击查询按钮').style('color: #666; margin-top: 1rem;')
+    
     
     async def query_stock_data(code, days):
         """查询股票数据并显示"""
@@ -129,7 +117,7 @@ def load_stock_market_page():
         finally:
             # 取消加载状态
             set_loading(False)
-    
+
     def create_kline_chart(stock_data, code):
         """创建K线图表"""
         # 创建K线图
@@ -156,7 +144,7 @@ def load_stock_market_page():
         )
         
         return fig
-    
+
     def export_data(stock_data):
         """导出数据"""
         try:

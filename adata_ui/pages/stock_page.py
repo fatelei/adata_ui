@@ -10,12 +10,138 @@ data_loader = DataLoader()
 data_transformer = DataTransformer()
 
 
+def export_batch_results(results):
+    """导出批量查询结果"""
+    try:
+        # 创建DataFrame
+        df = pd.DataFrame(results)
+        
+        # 创建临时文件路径
+        import tempfile
+        import os
+        import datetime
+        
+        timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
+            df.to_csv(tmp.name, index=False, encoding='utf-8-sig')
+            tmp_path = tmp.name
+        
+        # 下载文件
+        filename = f"batch_stock_info_{timestamp}.csv"
+        ui.download(tmp_path, filename=filename)
+        
+        # 删除临时文件
+        os.unlink(tmp_path)
+        
+        ui.notify('批量数据导出成功', color='success')
+    except Exception as e:
+        show_error(f'批量导出失败: {str(e)}')
+
+async def batch_query(codes_text, result_area):
+    """批量查询股票信息"""
+    if not codes_text:
+        ui.notify('请输入股票代码', color='warning')
+        return
+    
+    # 获取股票代码列表
+    codes = [code.strip() for code in codes_text.strip().split('\n') if code.strip()]
+    if not codes:
+        ui.notify('请输入有效的股票代码', color='warning')
+        return
+    
+    # 清空结果区域
+    result_area.clear()
+    
+    # 设置加载状态
+    set_loading(True)
+    try:
+        # 显示加载提示
+        with result_area:
+            ui.spinner()
+            ui.label('正在查询，请稍候...')
+        
+        # 批量查询
+        results = []
+        for code in codes:
+            try:
+                info = await data_loader.get_stock_info(code)
+                if info:
+                    results.append(info)
+            except Exception as e:
+                # 单个股票查询失败不影响整体
+                pass
+        
+        # 清空结果区域
+        result_area.clear()
+        
+        if not results:
+            with result_area:
+                ui.label('未查询到任何股票信息').style('color: #666;')
+            return
+        
+        # 显示结果表格
+        with result_area:
+            ui.label(f'查询到 {len(results)} 只股票').style('margin-bottom: 1rem;')
+            
+            # 准备表格数据
+            table_data = []
+            for info in results:
+                table_data.append({
+                    'code': info.get('code', '-'),
+                    'name': info.get('name', '-'),
+                    'industry': info.get('industry', '-'),
+                    'current_price': info.get('current_price', '-'),
+                    'change_percent': f"{info.get('change_percent', 0):+.2f}%",
+                    'pe_ttm': info.get('pe_ttm', '-')
+                })
+            
+            # 创建表格
+            columns = [
+                {'name': 'code', 'label': '股票代码', 'field': 'code', 'sortable': True},
+                {'name': 'name', 'label': '股票名称', 'field': 'name', 'sortable': True},
+                {'name': 'industry', 'label': '所属行业', 'field': 'industry'},
+                {'name': 'current_price', 'label': '当前价', 'field': 'current_price', 'sortable': True},
+                {'name': 'change_percent', 'label': '涨跌幅', 'field': 'change_percent', 'sortable': True},
+                {'name': 'pe_ttm', 'label': '市盈率(TTM)', 'field': 'pe_ttm', 'sortable': True}
+            ]
+            
+            ui.table(columns=columns, rows=table_data, pagination={'rowsPerPage': 10}).classes('w-full')
+            
+            # 导出按钮
+            ui.button('导出全部', on_click=lambda: export_batch_results(results)).props('color=success mt-2')
+    
+    except Exception as e:
+        show_error(f'批量查询失败: {str(e)}')
+    finally:
+        # 取消加载状态
+        set_loading(False)
+
+def show_batch_query_dialog():
+    """显示批量查询对话框"""
+    # 打开对话框
+    with ui.dialog() as dialog, ui.card().classes('p-6 max-w-2xl'):
+        ui.label('批量查询股票信息').style('font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem;')
+        
+        # 输入框（支持多行）
+        ui.label('请输入股票代码，每行一个：')
+        batch_input = ui.textarea(placeholder='例如：\n600000\n000001\n000002').classes('w-full h-32 mb-4')
+        
+        # 结果显示区域
+        result_area = ui.element('div')
+        
+        # 按钮区域
+        with ui.row().classes('justify-end gap-2 mt-4'):
+            ui.button('取消', on_click=dialog.close).props('flat')
+            ui.button('查询', on_click=lambda: batch_query(batch_input.value, result_area)).props('color=primary')
+    
+    dialog.open()
+
+
 def load_stock_info_page():
     """加载股票信息查询页面"""
-    # 清空主内容区域
-    main_content = app.storage.general.get('main_content')
-    if main_content:
-        main_content.clear()
+    # 不需要从全局存储获取main_content，直接在当前上下文中创建内容
+    # 创建一个新的容器作为主内容区域
+    main_content = ui.column()
     
     # 页面标题
     with main_content:
@@ -170,104 +296,7 @@ def load_stock_info_page():
                 ui.button('导出信息', on_click=lambda: export_stock_info(stock_info), icon='download').props('flat color=success')
                 ui.button('查看行情', on_click=lambda: switch_to_market(stock_info.get('code', '')), icon='show-chart').props('color=primary')
     
-    def show_batch_query_dialog():
-        """显示批量查询对话框"""
-        # 打开对话框
-        with ui.dialog() as dialog, ui.card().classes('p-6 max-w-2xl'):
-            ui.label('批量查询股票信息').style('font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem;')
-            
-            # 输入框（支持多行）
-            ui.label('请输入股票代码，每行一个：')
-            batch_input = ui.textarea(placeholder='例如：\n600000\n000001\n000002').classes('w-full h-32 mb-4')
-            
-            # 结果显示区域
-            result_area = ui.element('div')
-            
-            # 按钮区域
-            with ui.row().classes('justify-end gap-2 mt-4'):
-                ui.button('取消', on_click=dialog.close).props('flat')
-                ui.button('查询', on_click=lambda: batch_query(batch_input.value, result_area)).props('color=primary')
-        
-        dialog.open()
-    
-    async def batch_query(codes_text, result_area):
-        """批量查询股票信息"""
-        if not codes_text:
-            ui.notify('请输入股票代码', color='warning')
-            return
-        
-        # 获取股票代码列表
-        codes = [code.strip() for code in codes_text.strip().split('\n') if code.strip()]
-        if not codes:
-            ui.notify('请输入有效的股票代码', color='warning')
-            return
-        
-        # 清空结果区域
-        result_area.clear()
-        
-        # 设置加载状态
-        set_loading(True)
-        try:
-            # 显示加载提示
-            with result_area:
-                ui.spinner()
-                ui.label('正在查询，请稍候...')
-            
-            # 批量查询
-            results = []
-            for code in codes:
-                try:
-                    info = await data_loader.get_stock_info(code)
-                    if info:
-                        results.append(info)
-                except Exception as e:
-                    # 单个股票查询失败不影响整体
-                    pass
-            
-            # 清空结果区域
-            result_area.clear()
-            
-            if not results:
-                with result_area:
-                    ui.label('未查询到任何股票信息').style('color: #666;')
-                return
-            
-            # 显示结果表格
-            with result_area:
-                ui.label(f'查询到 {len(results)} 只股票').style('margin-bottom: 1rem;')
-                
-                # 准备表格数据
-                table_data = []
-                for info in results:
-                    table_data.append({
-                        'code': info.get('code', '-'),
-                        'name': info.get('name', '-'),
-                        'industry': info.get('industry', '-'),
-                        'current_price': info.get('current_price', '-'),
-                        'change_percent': f"{info.get('change_percent', 0):+.2f}%",
-                        'pe_ttm': info.get('pe_ttm', '-')
-                    })
-                
-                # 创建表格
-                columns = [
-                    {'name': 'code', 'label': '股票代码', 'field': 'code', 'sortable': True},
-                    {'name': 'name', 'label': '股票名称', 'field': 'name', 'sortable': True},
-                    {'name': 'industry', 'label': '所属行业', 'field': 'industry'},
-                    {'name': 'current_price', 'label': '当前价', 'field': 'current_price', 'sortable': True},
-                    {'name': 'change_percent', 'label': '涨跌幅', 'field': 'change_percent', 'sortable': True},
-                    {'name': 'pe_ttm', 'label': '市盈率(TTM)', 'field': 'pe_ttm', 'sortable': True}
-                ]
-                
-                ui.table(columns=columns, rows=table_data, pagination={'rowsPerPage': 10}).classes('w-full')
-                
-                # 导出按钮
-                ui.button('导出全部', on_click=lambda: export_batch_results(results)).props('color=success mt-2')
-        
-        except Exception as e:
-            show_error(f'批量查询失败: {str(e)}')
-        finally:
-            # 取消加载状态
-            set_loading(False)
+
     
     def export_stock_info(stock_info):
         """导出单个股票信息"""
@@ -293,33 +322,6 @@ def load_stock_info_page():
             ui.notify('数据导出成功', color='success')
         except Exception as e:
             show_error(f'导出失败: {str(e)}')
-    
-    def export_batch_results(results):
-        """导出批量查询结果"""
-        try:
-            # 创建DataFrame
-            df = pd.DataFrame(results)
-            
-            # 创建临时文件路径
-            import tempfile
-            import os
-            import datetime
-            
-            timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
-                df.to_csv(tmp.name, index=False, encoding='utf-8-sig')
-                tmp_path = tmp.name
-            
-            # 下载文件
-            filename = f"batch_stock_info_{timestamp}.csv"
-            ui.download(tmp_path, filename=filename)
-            
-            # 删除临时文件
-            os.unlink(tmp_path)
-            
-            ui.notify('批量数据导出成功', color='success')
-        except Exception as e:
-            show_error(f'批量导出失败: {str(e)}')
     
     def switch_to_market(code):
         """切换到行情页面"""
